@@ -1,1 +1,1 @@
-# Golang Channel Broadcast
+# Golang Channel Multicast
