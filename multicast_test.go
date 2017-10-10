@@ -70,22 +70,20 @@ func TestGroupSendAndOneMemberRead(t *testing.T) {
 	member := group.Join()
 	group.Send(testMessage)
 
-	messageChan := make(chan interface{}, 1)
-	go func(m *Member, messageChan chan interface{}, t *testing.T) {
-		val := m.Read()
-		messageChan <- val
-	}(member, messageChan, t)
-
-	select {
-	case m := <-messageChan:
-		if m != testMessage {
-			t.Errorf("Read: '%s' not '%s'", m, testMessage)
-		} else {
-			t.Logf("Read: '%s' equal '%s'", m, testMessage)
+	go func(m *Member, t *testing.T) {
+		for {
+			select {
+			case val := <-m.Read():
+				if val != testMessage {
+					t.Errorf("Read: '%s' not '%s'", m, testMessage)
+				} else {
+					t.Logf("Read: '%s' equal '%s'", m, testMessage)
+				}
+			case <-time.After(5 * time.Second):
+				t.Errorf("Read timedout")
+			}
 		}
-	case <-time.After(5 * time.Second):
-		t.Errorf("Read timedout")
-	}
+	}(member, t)
 }
 
 func TestGroupSendAndMultipleMembersRead(t *testing.T) {
@@ -98,37 +96,33 @@ func TestGroupSendAndMultipleMembersRead(t *testing.T) {
 	member2 := group.Join()
 	group.Send(testMessage)
 
-	messageChan1 := make(chan interface{}, 1)
-	go func(m *Member, messageChan chan interface{}, t *testing.T) {
-		val := m.Read()
-		messageChan <- val
-	}(member1, messageChan1, t)
-
-	select {
-	case m := <-messageChan1:
-		if m != testMessage {
-			t.Errorf("Member1 Read: '%s' not '%s'", m, testMessage)
-		} else {
-			t.Logf("Member1 Read: '%s' equal '%s'", m, testMessage)
+	go func(m *Member, t *testing.T) {
+		for {
+			select {
+			case value := <-m.Read():
+				if value != testMessage {
+					t.Errorf("Member1 Read: '%s' not '%s'", m, testMessage)
+				} else {
+					t.Logf("Member1 Read: '%s' equal '%s'", m, testMessage)
+				}
+			case <-time.After(5 * time.Second):
+				t.Errorf("Member1 Read timedout")
+			}
 		}
-	case <-time.After(5 * time.Second):
-		t.Errorf("Member1 Read timedout")
-	}
+	}(member1, t)
 
-	messageChan2 := make(chan interface{}, 1)
-	go func(m *Member, messageChan chan interface{}, t *testing.T) {
-		val := m.Read()
-		messageChan <- val
-	}(member2, messageChan2, t)
-
-	select {
-	case m := <-messageChan2:
-		if m != testMessage {
-			t.Errorf("Member2 Read: '%s' not '%s'", m, testMessage)
-		} else {
-			t.Logf("Member2 Read: '%s' equal '%s'", m, testMessage)
+	go func(m *Member, t *testing.T) {
+		for {
+			select {
+			case val := <-m.Read():
+				if val != testMessage {
+					t.Errorf("Member2 Read: '%s' not '%s'", m, testMessage)
+				} else {
+					t.Logf("Member2 Read: '%s' equal '%s'", m, testMessage)
+				}
+			case <-time.After(5 * time.Second):
+				t.Errorf("Member2 Read timedout")
+			}
 		}
-	case <-time.After(5 * time.Second):
-		t.Errorf("Member2 Read timedout")
-	}
+	}(member2, t)
 }

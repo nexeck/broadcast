@@ -4,13 +4,13 @@ import "sync"
 
 // Member of group
 type Member struct {
-	group *Group
-	in    chan interface{}
+	group   *Group
+	message chan interface{}
 }
 
 // Group broadcasts payloads to members
 type Group struct {
-	in         chan interface{}
+	message    chan interface{}
 	quit       chan bool
 	members    []*Member
 	memberLock sync.Mutex
@@ -18,9 +18,9 @@ type Group struct {
 
 // NewGroup creates a new broadcast group.
 func NewGroup() *Group {
-	in := make(chan interface{})
+	message := make(chan interface{})
 	quit := make(chan bool)
-	return &Group{in: in, quit: quit}
+	return &Group{message: message, quit: quit}
 }
 
 // Join returns a new member object and adds it to the group
@@ -29,20 +29,20 @@ func (g *Group) Join() *Member {
 	defer g.memberLock.Unlock()
 
 	member := &Member{
-		group: g,
-		in:    make(chan interface{}),
+		group:   g,
+		message: make(chan interface{}),
 	}
 
 	g.members = append(g.members, member)
 	return member
 }
 
-// MemberCount returns the number of members in the Group.
+// MemberCount returns the number of members message the Group.
 func (g *Group) MemberCount() int {
 	return len(g.Members())
 }
 
-// Members returns a slice of Members that are currently in the Group.
+// Members returns a slice of Members that are currently message the Group.
 func (g *Group) Members() []*Member {
 	g.memberLock.Lock()
 	res := g.members[:]
@@ -52,24 +52,24 @@ func (g *Group) Members() []*Member {
 
 // Send broadcasts a message to the group.
 func (g *Group) Send(val interface{}) {
-	g.in <- val
+	g.message <- val
 }
 
 // Broadcast messages to group members.
 func (g *Group) Broadcast() {
 	for {
 		select {
-		case received := <-g.in:
+		case message := <-g.message:
 			g.memberLock.Lock()
 			members := g.members[:]
 			g.memberLock.Unlock()
 
 			for _, member := range members {
-				// This is done in a goroutine because if it
+				// This is done message a goroutine because if it
 				// weren't it would be a blocking call
-				go func(member *Member, received interface{}) {
-					member.in <- received
-				}(member, received)
+				go func(member *Member, message interface{}) {
+					member.message <- message
+				}(member, message)
 			}
 		case <-g.quit:
 			return
@@ -82,7 +82,7 @@ func (g *Group) Quit() {
 	g.quit <- true
 }
 
-// Read reads one value from the member's Read channel
-func (m *Member) Read() interface{} {
-	return <-m.in
+// Read returns the message channel
+func (m *Member) Read() <-chan interface{} {
+	return m.message
 }
