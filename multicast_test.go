@@ -1,6 +1,7 @@
 package multicast
 
 import (
+	"sync"
 	"testing"
 	"time"
 )
@@ -56,6 +57,7 @@ func TestGroupMemberCount(t *testing.T) {
 
 func TestGroupSend(t *testing.T) {
 	group := NewGroup()
+	defer group.Quit()
 
 	go group.Broadcast()
 	group.Send("test payload")
@@ -65,12 +67,18 @@ func TestGroupSendAndOneMemberRead(t *testing.T) {
 	testMessage := "test payload"
 
 	group := NewGroup()
+	defer group.Quit()
+
 	go group.Broadcast()
 
 	member := group.Join()
-	group.Send(testMessage)
 
-	go func(m *Member, t *testing.T) {
+	wg := &sync.WaitGroup{}
+
+	wg.Add(1)
+	go func(wg *sync.WaitGroup, m *Member, t *testing.T) {
+		defer wg.Done()
+
 		for {
 			select {
 			case val := <-m.Read():
@@ -79,24 +87,36 @@ func TestGroupSendAndOneMemberRead(t *testing.T) {
 				} else {
 					t.Logf("Read: '%s' equal '%s'", m, testMessage)
 				}
+				return
 			case <-time.After(5 * time.Second):
-				t.Errorf("Read timedout")
+				t.Error("Read timedout")
+				return
 			}
 		}
-	}(member, t)
+	}(wg, member, t)
+
+	group.Send(testMessage)
+
+	wg.Wait()
 }
 
 func TestGroupSendAndMultipleMembersRead(t *testing.T) {
 	testMessage := "test payload"
 
 	group := NewGroup()
+	defer group.Quit()
+
 	go group.Broadcast()
 
 	member1 := group.Join()
 	member2 := group.Join()
-	group.Send(testMessage)
 
+	wg := &sync.WaitGroup{}
+
+	wg.Add(1)
 	go func(m *Member, t *testing.T) {
+		defer wg.Done()
+
 		for {
 			select {
 			case value := <-m.Read():
@@ -105,13 +125,18 @@ func TestGroupSendAndMultipleMembersRead(t *testing.T) {
 				} else {
 					t.Logf("Member1 Read: '%s' equal '%s'", m, testMessage)
 				}
+				return
 			case <-time.After(5 * time.Second):
-				t.Errorf("Member1 Read timedout")
+				t.Error("Member1 Read timedout")
+				return
 			}
 		}
 	}(member1, t)
 
+	wg.Add(1)
 	go func(m *Member, t *testing.T) {
+		defer wg.Done()
+
 		for {
 			select {
 			case val := <-m.Read():
@@ -120,9 +145,15 @@ func TestGroupSendAndMultipleMembersRead(t *testing.T) {
 				} else {
 					t.Logf("Member2 Read: '%s' equal '%s'", m, testMessage)
 				}
+				return
 			case <-time.After(5 * time.Second):
-				t.Errorf("Member2 Read timedout")
+				t.Error("Member2 Read timedout")
+				return
 			}
 		}
 	}(member2, t)
+
+	group.Send(testMessage)
+
+	wg.Wait()
 }
